@@ -53,7 +53,6 @@
 
 <!-- HERO -->
 <section class="hero" id="home">
-  <canvas class="hero-particles" aria-hidden="true"></canvas>
   <div class="hero-inner">
     <div class="hero-text">
       <p class="hero-place"><span data-dia>Lian, Batangas, Philippines</span></p>
@@ -70,7 +69,10 @@
 
     <div class="hero-visual blur-fade" style="--blur-delay:1200ms">
       <div class="hero-map-panel">
-        <div class="hero-map" id="heroMap" data-lat="14.0381" data-lng="120.6522" aria-label="Map of Lian, Batangas showing the Municipal Agriculture Office"></div>
+        <div class="hero-map" id="heroMap" data-lat="14.0381" data-lng="120.6522" data-boundary="{{ asset('geojson/lian-boundary.geojson') }}" aria-label="Map of Lian, Batangas showing the Municipal Agriculture Office"></div>
+        <a class="hero-map-link" href="https://www.google.com/maps/search/?api=1&amp;query=14.0381%2C120.6522" target="_blank" rel="noopener noreferrer" aria-label="Open the Municipal Agriculture Office of Lian, Batangas in Google Maps (opens in a new tab)">
+          <span class="hero-map-open">Open in Google Maps <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.5 2H2v8h8V7.5M7 2h3v3M10 2 5.5 6.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </a>
         <div class="hero-map-card" id="heroMapCard">
           <div class="hmc-office">Municipal Agriculture Office</div>
           <div class="hmc-location">Poblacion, Lian, Batangas</div>
@@ -97,10 +99,8 @@
             <div class="hws-label" data-hero-rain-label>{{ $heroClimate ? 'Rainfall (record)' : 'Rainfall today' }}</div>
           </div>
         </div>
-        <span class="border-beam" aria-hidden="true"></span>
       </div>
-      {{-- OpenStreetMap's licence requires this credit; it sits under the map instead of on it. --}}
-      <p class="hero-map-credit">Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors</p>
+      <p class="hero-map-credit">Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &middot; Sources: Esri, HERE, Garmin, USGS, <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors and the GIS User Community</p>
     </div>
   </div>
 </section>
@@ -173,11 +173,9 @@
 <!-- FEATURES -->
 <section class="features-section" id="features">
   <div class="container">
-    <div class="section-banner" style="--banner: var(--rice-features)">
-      <div class="section-header">
-        <h2>Six tools, one growing cycle</h2>
-        <p>Each module helps you plan, monitor, and decide with confidence, from planting to harvest.</p>
-      </div>
+    <div class="section-header">
+      <h2>Six tools, one growing cycle</h2>
+      <p>Each module helps you plan, monitor, and decide with confidence, from planting to harvest.</p>
     </div>
 
     <div class="features-grid">
@@ -305,11 +303,9 @@
 <!-- USER ROLES -->
 <section class="roles-section" id="roles">
   <div class="container">
-    <div class="section-banner" style="--banner: var(--rice-hero)">
-      <div class="section-header">
-        <h2>Who uses iClimate?</h2>
-        <p>Three workspaces, one set of records: rice farmers, MAO personnel, and IT experts each see what they need.</p>
-      </div>
+    <div class="section-header">
+      <h2>Who uses iClimate?</h2>
+      <p>Three workspaces, one set of records: rice farmers, MAO personnel, and IT experts each see what they need.</p>
     </div>
     <div class="roles-grid">
 
@@ -435,11 +431,9 @@
 <!-- CONTACT -->
 <section class="contact-section" id="contact">
   <div class="container">
-    <div class="section-banner" style="--banner: var(--rice-contact)">
-      <div class="section-header">
-        <h2>Have questions about iClimate?</h2>
-        <p>Reach the team at the Municipal Agriculture Office of Lian, Batangas. We support farmers, MAO personnel, and IT experts using the platform.</p>
-      </div>
+    <div class="section-header">
+      <h2>Have questions about iClimate?</h2>
+      <p>Reach the team at the Municipal Agriculture Office of Lian, Batangas. We support farmers, MAO personnel, and IT experts using the platform.</p>
     </div>
     <div class="contact-grid">
       <div class="contact-info">

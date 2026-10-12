@@ -175,16 +175,6 @@ select:focus-visible {
     transition: background-color 0s .22s;
 }
 
-/* ---------------------------------------------- hero particles (Magic UI) */
-.hero-particles {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: min(100vh, 920px);
-    pointer-events: none;
-}
-
 .hero-inner {
     position: relative;
     z-index: 1;
@@ -200,21 +190,17 @@ select:focus-visible {
 /* About, Features, User roles and Contact share one look with the hero: the
    plain page green, near-black tiles, left-aligned text and mint accents. */
 
-/* Each section gets faint generated line art (public/images/bg): contour maps or terraced hills. */
-.about-section {
-    background: url('/images/bg/contours.svg') right -240px top 40px / 1100px auto no-repeat, var(--page-bg);
-}
-
-.features-section {
-    background: url('/images/bg/hills.svg') center bottom / 100% 420px no-repeat, var(--page-bg);
-}
-
-.roles-section {
-    background: url('/images/bg/contours.svg') left -320px bottom -60px / 1100px auto no-repeat, var(--page-bg);
-}
-
+/* Plain backgrounds: every section sits on the same flat page green. */
+.hero,
+.about-section,
+.features-section,
+.roles-section,
 .contact-section {
-    background: url('/images/bg/hills.svg') center bottom / 100% 360px no-repeat, var(--page-bg);
+    background: var(--page-bg);
+}
+
+.hero::before {
+    content: none;
 }
 
 .about-section > .container,
@@ -550,38 +536,6 @@ select:focus-visible {
     color: var(--iclimate-primary);
 }
 
-/* ------------------------------------------------------- drifting shapes */
-/* Line drawings of rice and weather floating slowly behind every section. */
-.drift-layer {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-}
-
-.drift-layer span {
-    position: absolute;
-    color: var(--ic-mint);
-    stroke-width: 1.5;
-    animation: sectionDrift var(--dur) ease-in-out var(--delay) infinite alternate;
-}
-
-.drift-layer svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-@keyframes sectionDrift {
-    from { transform: translate(0, 0) rotate(0deg); }
-    to   { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .drift-layer span { animation: none; }
-}
-
 .role-card--highlight .role-icon-wrap--img {
     box-shadow: none;
 }
@@ -592,45 +546,6 @@ select:focus-visible {
 
 .section-header {
     max-width: 760px;
-}
-
-/* ----------------------------------------------------------- photo banners */
-/* Features, User roles and Contact open on a wide photo with the heading set on it. */
-.section-banner {
-    position: relative;
-    display: flex;
-    align-items: flex-end;
-    min-height: 420px;
-    margin-bottom: 24px;
-    padding: 48px;
-    border-radius: 28px;
-    overflow: hidden;
-    background:
-        linear-gradient(180deg, rgba(0, 0, 0, 0) 25%, rgba(6, 18, 14, .88) 100%),
-        var(--banner) center / cover no-repeat;
-}
-
-.section-banner .section-header {
-    max-width: 640px;
-    margin: 0;
-    text-align: left;
-}
-
-.section-banner .section-header h2 {
-    margin-bottom: 10px;
-}
-
-.section-banner .section-header p {
-    margin: 0;
-    color: rgba(255, 255, 255, .8);
-}
-
-@media (max-width: 768px) {
-    .section-banner {
-        min-height: 320px;
-        padding: 28px;
-        border-radius: 22px;
-    }
 }
 
 /* Contact: details on the left, form on the right, both full height. */
@@ -773,3 +688,128 @@ select:focus-visible {
 
 .footer::before,
 .footer::after { content: none !important; display: none !important; }
+
+/* About: the mission statement sits on a plain tile instead of a photo. */
+.about-photo {
+    min-height: 0;
+    background: var(--surface-ink);
+    box-shadow: none;
+}
+
+.about-photo .mission-card {
+    position: static;
+    max-width: none;
+    margin: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+/* Hero map: Google Maps look. Light street map, untinted tiles, white info card,
+   white weather card along the bottom and an "Open in Google Maps" button at the top right. */
+.hero-map-panel,
+.hero-map.leaflet-container {
+    background: #f2efe9;
+}
+
+.hero-map-panel {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .2), 0 12px 40px rgba(0, 0, 0, .25);
+}
+
+.hero-map-panel::after {
+    content: none;
+}
+
+.hero-map .leaflet-tile-pane {
+    filter: none;
+}
+
+.hero-map.leaflet-container {
+    font-family: "Inter", system-ui, sans-serif;
+}
+
+.hero-pin {
+    width: auto;
+    height: auto;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .3));
+}
+
+.hero-map-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 7px 1px rgba(0, 0, 0, .3);
+    background: #fff;
+}
+
+.hero-map-tip .hero-map-card::after {
+    background: #fff;
+}
+
+/* The whole map is one link to Google Maps; it sits over the tiles and the red
+   border but under the pin, the office card and the weather card. */
+.hero-map-link {
+    position: absolute;
+    inset: 0;
+    z-index: 450;
+    cursor: pointer;
+}
+
+.hero-map-link:focus-visible {
+    outline: 3px solid #1a73e8;
+    outline-offset: -3px;
+    border-radius: inherit;
+}
+
+.hero-map-open {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 14px;
+    font-size: .875rem;
+    font-weight: 500;
+    color: #1a73e8;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+    transition: background-color .15s ease;
+}
+
+.hero-map-link:hover .hero-map-open {
+    background: #f1f3f4;
+}
+
+.hero-weather-strip {
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+    padding: 16px 20px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+}
+
+.hero-weather-strip .hws-val {
+    color: #202124;
+}
+
+.hero-weather-strip .hws-label {
+    color: #5f6368;
+}
+
+.hero-weather-strip .hws-item + .hws-item {
+    border-left-color: #e6e6e6;
+}
+
+/* Office card on the map: all text in black. */
+.hero-map-card .hmc-office,
+.hero-map-card .hmc-location,
+.hero-map-card .hmc-live {
+    color: #000;
+}
