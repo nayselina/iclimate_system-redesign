@@ -1,0 +1,456 @@
+/*
+ * iClimate sidebar: the one navigation shell for Farmer, MAO and IT (markup: resources/views/layouts/sidebar.blade.php).
+ *
+ * 768px and wider (tablets, laptops, desktops; 2026-10-07, was 992px): fixed to the left edge at the full screen height
+ * (100vh / 100dvh) on every page; only the page beside it scrolls. The sidebar is three rows: brand on top, menu in the
+ * middle, Appearance + copyright at the bottom. The menu row takes all the height that is left and its links share it:
+ * each link grows with the space (52px, up to --sb-tab-max: 56-88px by window height) and shrinks to 30px on a short
+ * window, so a long menu (MAO) gets slightly lower links, a short one (Farmer, IT) taller ones, and nothing is cut off
+ * or scrolls. Once the links are at their largest, the space between them opens up to --sb-gap-max, no further: the
+ * stack's own height is capped from its link count (--sb-count, set in the markup). One set of rules for every role.
+ * Only under 600px of height are the Appearance label and copyright line dropped, and only under 480px (a window
+ * zoomed far in) may the menu scroll. 768-991px uses a narrower sidebar so the page keeps room.
+ * Phones (under 768px): the sidebar is hidden; the same menu opens full screen (#mobileSidebar, a Bootstrap offcanvas)
+ * from the menu button in the top bar, with a close button; choosing a page closes it (resources/js/app.js). Its links
+ * flex the same way (48px, 36-60px) before the menu scrolls.
+ *
+ * Selectors start with `html body .ic-sidebar` so they win over the older generic .sidebar-* / .offcanvas rules in
+ * app.css and the layout's inline <style>.
+ */
+
+:root {
+    --sidebar-width: 248px;
+    --sb-bg: linear-gradient(180deg, #0f3d2e 0%, #0c3326 100%);
+    /* Desktop sidebar: the same green, let through a little of the page backdrop behind it. The drawer stays solid. */
+    --sb-bg-fixed: linear-gradient(180deg, rgba(15, 61, 46, .9) 0%, rgba(12, 51, 38, .94) 100%);
+    --sb-edge: rgba(255, 255, 255, .08);
+    --sb-text: rgba(255, 255, 255, .8);
+    --sb-text-strong: #ffffff;
+    --sb-icon: rgba(255, 255, 255, .7);
+    --sb-label: rgba(255, 255, 255, .6);
+    --sb-hover: rgba(255, 255, 255, .07);
+    --sb-active-bg: rgba(127, 214, 181, .2);
+    --sb-accent: #8fdcb8;
+    /* Largest link height and largest space between links; both follow the window height. */
+    --sb-tab-max: clamp(56px, 9vh, 88px);
+    --sb-gap-max: clamp(6px, 3vh, 32px);
+    --sb-divider: rgba(255, 255, 255, .1);
+    --sb-switch-bg: rgba(0, 0, 0, .2);
+}
+
+html[data-theme="dark"] {
+    --sb-bg: linear-gradient(180deg, #0b261c 0%, #091d16 100%);
+    --sb-bg-fixed: linear-gradient(180deg, rgba(11, 38, 28, .9) 0%, rgba(9, 29, 22, .94) 100%);
+    --sb-edge: rgba(255, 255, 255, .06);
+    --sb-active-bg: rgba(127, 214, 181, .17);
+    --sb-switch-bg: rgba(0, 0, 0, .28);
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    :root { --sidebar-width: 216px; }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    :root { --sidebar-width: 232px; }
+}
+
+/* ------------------------------------------------------------------ shell */
+html body .ic-sidebar {
+    display: flex;
+    flex-direction: column;
+    color: var(--sb-text);
+    background: var(--sb-bg);
+    border-right: 1px solid var(--sb-edge);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    font-family: "Inter", Arial, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html body .ic-sidebar.sidebar-fixed {
+    position: fixed;
+    inset: 0 auto 0 0;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    box-sizing: border-box;
+    z-index: 1030;
+    overflow: hidden;
+    background: var(--sb-bg-fixed);
+}
+
+html body .ic-sidebar::before { content: none; }
+
+/* ------------------------------------------------------------------ brand */
+html body .ic-sidebar .ic-sb-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    margin: 0 14px;
+    padding: clamp(10px, 1.6vh, 18px) 4px clamp(8px, 1.3vh, 14px);
+    border-bottom: 1px solid var(--sb-divider);
+    color: var(--sb-text-strong);
+    text-decoration: none;
+}
+
+html body .ic-sidebar .ic-sb-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
+html body .ic-sidebar .ic-sb-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+html body .ic-sidebar .ic-sb-wordmark { font-size: 1.125rem; font-weight: 800; letter-spacing: -.01em; color: var(--sb-text-strong); }
+html body .ic-sidebar .ic-sb-place { margin-top: 2px; font-size: .6875rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--sb-label); }
+html body .ic-sidebar .ic-sb-brand:focus-visible { outline: 2px solid var(--sb-accent); outline-offset: 2px; border-radius: 8px; }
+
+/* ------------------------------------------------------------------ menu */
+html body .ic-sidebar .ic-sb-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    min-height: 0;
+    gap: 0;
+    padding: 6px 12px 10px;
+    overflow-x: hidden;
+    /* Desktop navigation is deliberately non-scrollable: the links below share this row's height instead. */
+    overflow-y: hidden;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    justify-content: flex-start;
+}
+
+html body .ic-sidebar .ic-sb-nav::-webkit-scrollbar { display: none; }
+
+/* Group and stack pass the menu row's height down to the links. */
+html body .ic-sidebar .sidebar-group { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+
+html body .ic-sidebar .sidebar-section {
+    flex: none;
+    margin: clamp(6px, 1.4vh, 12px) 10px clamp(2px, .6vh, 5px);
+    font-size: .6875rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--sb-label);
+}
+
+html body .ic-sidebar .sidebar-group:first-child .sidebar-section { margin-top: clamp(4px, 1vh, 8px); }
+
+html body .ic-sidebar .sidebar-stack {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    /* Never taller than its links at full size with the widest gaps: what is left over stays below the menu. */
+    max-height: calc(var(--sb-count, 12) * var(--sb-tab-max) + (var(--sb-count, 12) - 1) * var(--sb-gap-max));
+    justify-content: space-between;
+    gap: clamp(2px, .8vh, 6px);
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+html body .ic-sidebar .sidebar-link {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    /* Shares the menu's height: 52px, up to --sb-tab-max when there is room, down to 30px on a short window. */
+    flex: 1 1 52px;
+    min-height: 30px;
+    max-height: var(--sb-tab-max);
+    padding: 0 14px;
+    border: 0;
+    border-left: 3px solid transparent;
+    border-radius: 10px;
+    color: var(--sb-text);
+    background: transparent;
+    box-shadow: none;
+    font-size: clamp(.9375rem, 1.9vh, 1rem);
+    font-weight: 500;
+    line-height: 1.2;
+    text-decoration: none;
+    white-space: nowrap;
+    transform: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    transition: background-color .2s ease, color .2s ease, border-color .2s ease !important;
+}
+
+html body .ic-sidebar .sidebar-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+html body .ic-sidebar .sidebar-icon {
+    display: inline-grid;
+    place-items: center;
+    width: clamp(18px, 2.4vh, 21px);
+    height: clamp(18px, 2.4vh, 21px);
+    flex: none;
+    color: var(--sb-icon);
+    background: none;
+    transform: none;
+    filter: none;
+    transition: color .2s ease;
+}
+
+html body .ic-sidebar .sidebar-icon svg { width: 100%; height: 100%; }
+
+html body .ic-sidebar .sidebar-link:hover {
+    color: var(--sb-text-strong);
+    background: var(--sb-hover);
+    padding-left: 14px;
+    transform: none;
+}
+
+html body .ic-sidebar .sidebar-link:hover .sidebar-icon { color: var(--sb-text-strong); transform: none; }
+
+html body .ic-sidebar .sidebar-link.active {
+    color: var(--sb-text-strong);
+    background: var(--sb-active-bg);
+    border-left-color: var(--sb-accent);
+    box-shadow: none;
+    font-weight: 600;
+}
+
+html body .ic-sidebar .sidebar-link.active .sidebar-icon { color: var(--sb-accent); filter: none; }
+
+/* A hairline between one link and the next: inset from both edges and fading out at its ends, so it divides without
+   boxing the menu in. None after the last link, and none touching the highlighted page. */
+html body .ic-sidebar .sidebar-link:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 0;                                 /* inside the link: the link clips what overflows it */
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--sb-rule, rgba(255, 255, 255, .22)) 16%, var(--sb-rule, rgba(255, 255, 255, .22)) 84%, transparent);
+    pointer-events: none;
+}
+
+html body .ic-sidebar .sidebar-link.active::after,
+html body .ic-sidebar .sidebar-link:has(+ .sidebar-link.active)::after { content: none; }
+
+html body .ic-sidebar .sidebar-link:active { transform: none; }
+
+html body .ic-sidebar .sidebar-link:focus-visible,
+html body .ic-sidebar .ic-theme-btn:focus-visible,
+html body .ic-sidebar .ic-sb-close:focus-visible {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: -2px;
+}
+
+html body .ic-sidebar .sidebar-badge {
+    margin-left: auto;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 6px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--iclimate-warning, #c58b2a);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 700;
+    animation: none;
+    box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ footer: Appearance + copyright */
+html body .ic-sidebar .ic-sb-foot {
+    flex: none;
+    margin: 0 14px;
+    padding: 10px 0 12px;
+    border-top: 1px solid var(--sb-divider);
+}
+
+html body .ic-sidebar .ic-sb-appearance-label {
+    display: block;
+    margin: 0 4px 6px;
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--sb-label);
+}
+
+html body .ic-sidebar .ic-theme-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--sb-divider);
+    border-radius: 10px;
+    background: var(--sb-switch-bg);
+}
+
+html body .ic-sidebar .ic-theme-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--sb-text);
+    font: inherit;
+    font-size: .8125rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transform: none;
+    transition: background-color .2s ease, color .2s ease;
+}
+
+html body .ic-sidebar .ic-theme-btn:hover { color: var(--sb-text-strong); background: var(--sb-hover); }
+
+/* The chosen theme is a solid mint pill with dark text, unmistakable in both themes. */
+html body .ic-sidebar .ic-theme-btn[aria-pressed="true"],
+html body .ic-sidebar .ic-theme-btn[aria-pressed="true"]:hover {
+    color: #0b2a1f;
+    background: var(--sb-accent);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+}
+
+html body .ic-sidebar .ic-theme-btn[aria-pressed="true"] svg { color: #0b2a1f; }
+html body .ic-sidebar .ic-theme-btn[aria-pressed="true"]:focus-visible { outline-color: #fff; outline-offset: 2px; }
+
+html body .ic-sidebar .sidebar-foot {
+    margin: 8px 4px 0;
+    padding: 0;
+    font-size: .6875rem;
+    line-height: 1.35;
+    color: var(--sb-label);
+}
+
+/* The narrower tablet sidebar (216px): a little less side padding so the longest label still fits on one line. */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    html body .ic-sidebar.sidebar-fixed .sidebar-link { gap: 10px; padding: 0 10px; font-size: .9375rem; }
+    html body .ic-sidebar.sidebar-fixed .sidebar-link:hover { padding-left: 10px; }
+}
+
+/* Short windows (a small laptop zoomed in): drop the two least useful lines so the links keep a readable height. */
+@media (min-width: 768px) and (max-height: 600px) {
+    html body .ic-sidebar.sidebar-fixed .ic-sb-appearance-label,
+    html body .ic-sidebar.sidebar-fixed .sidebar-foot { display: none; }
+    html body .ic-sidebar.sidebar-fixed .ic-sb-foot { padding: 8px 0 10px; }
+    html body .ic-sidebar.sidebar-fixed .ic-sb-logo { width: 30px; height: 30px; }
+    html body .ic-sidebar.sidebar-fixed .ic-sb-brand { padding-top: 8px; padding-bottom: 7px; }
+    html body .ic-sidebar.sidebar-fixed .ic-sb-nav { padding-top: 3px; padding-bottom: 7px; }
+}
+
+/* Last resort, not a normal desktop or laptop size: under 480px of height, once the links are at their 30px minimum
+   the menu scrolls inside its own row (no visible scrollbar); the brand and the Light/Dark switch stay in place. */
+@media (min-width: 768px) and (max-height: 480px) {
+    html body .ic-sidebar.sidebar-fixed .ic-sb-nav { overflow-y: auto; }
+}
+
+/* From 768px the content column owns vertical scrolling independently from the fixed sidebar. */
+@media (min-width: 768px) {
+    html body { height: 100vh; height: 100dvh; overflow: hidden; }
+    html body .app-main {
+        height: 100vh;
+        height: 100dvh;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+}
+
+/* ------------------------------------------------------------------ phone drawer: full screen */
+html body #mobileSidebar.ic-sidebar {
+    inset: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    background: var(--sb-bg);
+    color: var(--sb-text);
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+html body #mobileSidebar .ic-sb-drawer-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+    padding-right: 10px;
+    border-bottom: 1px solid var(--sb-divider);
+}
+
+html body #mobileSidebar .ic-sb-drawer-head .ic-sb-brand { flex: 1 1 auto; border-bottom: 0; padding: 14px 4px; }
+
+html body #mobileSidebar .ic-sb-close {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--sb-text-strong);
+    cursor: pointer;
+}
+
+html body #mobileSidebar .ic-sb-close:hover { background: var(--sb-hover); }
+
+html body #mobileSidebar .ic-sb-nav {
+    justify-content: flex-start;   /* the menu starts under the brand, not in the middle of the full-screen drawer */
+    flex-basis: auto;
+    padding-bottom: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+html body #mobileSidebar .ic-sb-nav::-webkit-scrollbar { display: block; width: 6px; }
+html body #mobileSidebar .ic-sb-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .22); border-radius: 999px; }
+html body #mobileSidebar .sidebar-section { margin-top: 12px; }
+/* Touch sizes: 48px, up to 60px on a tall phone, down to 36px before the menu scrolls. */
+html body #mobileSidebar { --sb-tab-max: 60px; --sb-gap-max: 12px; }
+html body #mobileSidebar .sidebar-link { flex-basis: 48px; min-height: 36px; font-size: 1rem; }
+html body #mobileSidebar .sidebar-icon { width: 20px; height: 20px; }
+html body #mobileSidebar .sidebar-stack { gap: 2px; }
+html body #mobileSidebar .ic-theme-btn { height: 40px; }
+html body #mobileSidebar .ic-sb-foot { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+
+/* The chatbot button would sit on top of the full-screen menu; it comes back when the menu closes. */
+body:has(#mobileSidebar.show, #mobileSidebar.showing) #icAiLauncher { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    html body .ic-sidebar .sidebar-link,
+    html body .ic-sidebar .ic-theme-btn { transition: none !important; }
+}
+
+/* The menu button (layouts/navigation.blade.php) that opens the drawer below 768px: at least 44px tall, easy to tap. */
+.topbar [data-bs-target="#mobileSidebar"] {
+    min-height: 44px;
+}
+
+/* A short phone: the copyright line makes room for the links. */
+@media (max-width: 767.98px) and (max-height: 640px) {
+    html body #mobileSidebar .sidebar-foot { display: none; }
+}
+
+/* A phone held sideways: the same two lines are dropped so the links keep a tappable height. */
+@media (max-width: 767.98px) and (max-height: 520px) {
+    html body #mobileSidebar .ic-sb-appearance-label,
+    html body #mobileSidebar .sidebar-foot { display: none; }
+    html body #mobileSidebar .ic-sb-drawer-head .ic-sb-brand { padding-top: 8px; padding-bottom: 8px; }
+    html body #mobileSidebar .ic-sb-nav { padding-bottom: 6px; }
+    html body #mobileSidebar .sidebar-section { margin-top: 6px; }
+    html body #mobileSidebar .sidebar-link { min-height: 32px; }
+}

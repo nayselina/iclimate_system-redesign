@@ -1,0 +1,236 @@
+/*
+ * IT Personnel dashboard (/admin/dashboard). Built on the farmer dashboard design system in farmer-dashboard.css:
+ * the page wrapper is .mfd.itd, so the tokens, header band, cards, KPI cards, status pills, buttons, links, notes,
+ * empty states and loading skeleton are the shared .mfd-* parts. Only what the farmer page does not have lives here
+ * as .itd-*: tabs, data tables, filters, the system health list, the activity feed, the heatmap and the small inline charts.
+ * Same type scale (nothing under 12px), same 8px spacing, same status colours paired with an icon and a word.
+ */
+
+/* ---------------------------------------------------------------- shared parts, adjusted for a denser admin page */
+.itd .mfd-btn.is-small { min-height: 36px; padding: 6px 14px; font-size: .875rem; }
+.itd .mfd-btn:disabled { opacity: .65; cursor: progress; }
+.itd .mfd-btn .mtd-svg { width: 18px; height: 18px; }
+.mfd-header .mfd-btn.is-ghost { background: transparent; border-color: rgba(255, 255, 255, .6); color: #fff !important; }
+.mfd-header .mfd-btn.is-ghost:hover { background: rgba(255, 255, 255, .14); border-color: #fff; }
+.itd select:focus-visible, .itd input:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; border-radius: 4px; }
+.itd .mfd-pill.is-unk { background: var(--subtle); color: var(--muted); border-color: var(--rule); }
+.itd .mfd-note.is-good { border-left-color: var(--good); background: var(--good-bg); color: var(--good-ink); }
+.itd .mfd-note.is-good .mtd-svg { color: var(--good); }
+.itd .mfd-note p { color: inherit; }
+.itd .mfd-empty p { color: var(--ink); }
+.itd .mfd-card-head { align-items: flex-start; }
+.itd .mfd-link { min-height: 32px; }
+.itd .mfd-foot { display: block; }
+.itd-num { text-align: right; }
+.itd-nowrap { white-space: nowrap; }
+.itd-mono { font-size: .875rem; overflow-wrap: anywhere; }
+.itd-unit { margin-left: 4px; font-size: .875rem; font-weight: 400; color: var(--muted); }
+.itd .d-block { display: block; }
+
+/* ---------------------------------------------------------------- header band */
+.itd-lede { margin-top: 8px !important; max-width: 760px; font-size: 1rem; font-weight: 400; color: rgba(255, 255, 255, .86); }
+.itd-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------------------------------------------------------------- layout: rows of one or two cards */
+.itd [data-panel] { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.itd-row { display: grid; gap: var(--gap); grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+/* IT Dashboard – Naicel (2026-10-09): the System Activity Trend chart. */
+.itd-trend-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
+.itd-trend-head .itd-section-title { margin-bottom: 2px; }
+.itd-trend-sub { margin: 0; font-size: .9375rem; color: var(--muted); }
+.itd-trend-box { position: relative; height: 340px; min-width: 0; }
+.itd-trend-state { margin: 0; padding: 24px 0; text-align: center; color: var(--muted); }
+@media (max-width: 575.98px) { .itd-trend-box { height: 280px; } }
+/* Clears the sticky top bar when a chip or KPI card scrolls a section into view. */
+.itd-cell { display: flex; min-width: 0; scroll-margin-top: 96px; }
+.itd-cell > * { flex: 1; min-width: 0; }
+.itd-cell.is-targeted > .mfd-card { outline: 3px solid var(--info); outline-offset: 2px; }
+@media (min-width: 1200px) { .itd-row.r-60-40 { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+@media (min-width: 1400px) { .itd-row.r-50-50:not(.is-wide) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* cards holding wide tables go side by side only when each half still fits them */
+@media (min-width: 1750px) { .itd-row.r-50-50.is-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------------------------------------------------------------- cards */
+.itd-card.is-warn { border-top: 3px solid var(--watch); }
+.itd-card.is-crit { border-top: 3px solid var(--danger); }
+.itd-sub { margin-top: 4px !important; font-size: .9375rem; font-weight: 400; color: var(--muted); }
+.itd-updated { display: block; margin-top: 4px; font-size: .8125rem; font-weight: 400; color: var(--muted); }
+.itd-h3 { margin: 24px 0 12px !important; padding-top: 20px; border-top: 1px solid var(--line); }
+.itd-h3.is-first { margin-top: 0 !important; padding-top: 0; border-top: 0; }
+.itd-period { margin-left: 6px; font-size: .875rem; font-weight: 400; color: var(--muted); }
+.itd-minor { margin: 16px 0 8px !important; font-size: .8125rem; font-weight: 600; line-height: 1.3; text-transform: none; letter-spacing: 1px; color: var(--muted); }
+.itd-list { display: grid; gap: 8px; }
+.itd-list li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; overflow-wrap: anywhere; }
+
+/* label / value rows: the shared .mfd-facts list with sentence-case labels */
+.itd-rows dt { font-size: .9375rem; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.itd-rows dd { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; }
+.itd-meter { display: inline-block; width: 120px; height: 8px; border-radius: 2px; background: #e3e8e5; overflow: hidden; }
+.itd-meter > span { display: block; height: 100%; background: var(--accent); }
+.itd-meter.is-warn > span { background: var(--watch); }
+.itd-meter.is-crit > span { background: var(--danger); }
+
+/* ---------------------------------------------------------------- KPI cards: the shared .mfd-kpi with a status edge */
+/* five cards: two per row on phones (the last one full width), three then two on tablets, one line on desktops */
+.itd-kpis { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.itd-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 768px) {
+    .itd-kpis { gap: 16px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .itd-kpis > .mfd-kpi, .itd-kpis > :last-child:nth-child(odd) { grid-column: span 2; }
+    .itd-kpis > .mfd-kpi:nth-child(n+4) { grid-column: span 3; }
+}
+@media (min-width: 1200px) {
+    .itd-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .itd-kpis > .mfd-kpi, .itd-kpis > .mfd-kpi:nth-child(n+4), .itd-kpis > :last-child:nth-child(odd) { grid-column: auto; }
+}
+.itd .mfd-kpi { position: relative; }
+.itd .mfd-kpi.is-ok { border-top-color: var(--good); }
+.itd .mfd-kpi.is-warn { border-top-color: var(--watch); }
+.itd .mfd-kpi.is-crit { border-top-color: var(--danger); }
+.itd .mfd-kpi.is-unk { border-top-color: var(--rule); }
+.itd-kpi-link { position: absolute; inset: 0; border-radius: var(--radius); }
+.itd .mfd-kpi-value { flex-wrap: wrap; }
+.itd .mfd-kpi-value.is-text { align-items: center; gap: 10px; font-size: 1.375rem; }
+.itd .mfd-kpi-meaning { font-size: .875rem; color: var(--muted); }
+.itd-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--rule); }
+.itd-dot.is-ok { background: var(--good); box-shadow: 0 0 0 4px var(--good-bg); }
+.itd-dot.is-warn { background: var(--watch); box-shadow: 0 0 0 4px var(--watch-bg); }
+
+/* ---------------------------------------------------------------- system health: one calm row per service */
+.itd-services { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; margin: 0; padding: 0; list-style: none; }
+.itd-service { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.itd-service-text { min-width: 0; }
+.itd-service-text strong { display: block; font-size: 1rem; }
+.itd-service-text p { margin-top: 2px; font-size: .9375rem; font-weight: 400; color: var(--muted); }
+.itd-service .mfd-pill { flex: none; }
+@media (min-width: 1100px) { .itd-services { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------------------------------------------------------------- recent activity feed (Overview) */
+.itd-feed { display: grid; margin: 0; padding: 0; list-style: none; }
+.itd-feed li { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.itd-feed li:last-child { border-bottom: 0; padding-bottom: 0; }
+.itd-feed-text { min-width: 0; }
+.itd-feed-text strong { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.itd-feed-text span { font-size: .875rem; color: var(--muted); }
+.itd-feed time { flex: none; font-size: .875rem; color: var(--muted); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- tabs */
+.itd-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 2px solid var(--rule); scrollbar-width: thin; }
+.itd-tab {
+    flex: none; min-height: 44px; padding: 8px 20px; margin-bottom: -2px; border: 0; border-bottom: 3px solid transparent; border-radius: 4px 4px 0 0;
+    background: transparent; color: var(--muted); font-size: .9375rem; font-weight: 600; cursor: pointer; transition: background .15s, color .15s;
+}
+.itd-tab:hover { background: var(--good-bg); color: var(--brand-ink, var(--brand)); }
+.itd-tab[aria-selected="true"] { background: var(--card); color: var(--brand-ink, var(--brand)); border-bottom-color: var(--brand); }
+
+/* ---------------------------------------------------------------- tables: ruled, striped, scrolling inside their own box */
+.itd-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; }
+.itd-table { width: 100%; min-width: 480px; border-collapse: collapse; font-size: .9375rem; }
+.itd-table.is-wide { min-width: 820px; }
+/* Users by Role: no minimum width, so all six columns always fit the card; headings may wrap onto two lines */
+.itd-table.is-roles { min-width: 0; }
+.itd-table.is-roles th { white-space: normal; }
+.itd-table.is-roles thead th { vertical-align: bottom; }
+.itd-table.is-roles tbody th { padding: 12px 16px; border-top: 1px solid var(--line); border-bottom: 0; background: transparent; text-align: left; font-size: .9375rem; font-weight: 700; line-height: inherit; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.itd-table.is-roles tbody th { white-space: nowrap; }
+.itd-table.is-roles tbody tr:first-child th { border-top: 0; }
+.itd-table.is-roles tbody tr:nth-child(even) th { background: var(--subtle); }
+.itd-table.is-roles tbody tr:hover th { background: #f1f8f4; }
+.itd-table.is-roles tbody tr.itd-total th { border-top: 2px solid var(--rule); background: var(--card); }
+.itd-active { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
+.itd-active small { min-width: 3.25em; font-size: .875rem; font-weight: 400; color: var(--muted); text-align: right; }
+.itd-table-wrap + .mfd-foot { margin-top: 16px !important; }
+.itd-table td.itd-num { white-space: nowrap; }
+.itd-table th { padding: 12px 16px; border-bottom: 1px solid var(--rule); background: var(--subtle); text-align: left; font-size: .8125rem; font-weight: 600; line-height: 1.3; text-transform: none; letter-spacing: 1px; color: var(--muted); white-space: nowrap; }
+.itd-table th.itd-num { text-align: right; }
+.itd-table th .itd-period { text-transform: none; letter-spacing: 0; }
+.itd-table td { padding: 12px 16px; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); }
+.itd-table tbody tr:first-child td { border-top: 0; }
+.itd-table th, .itd-table td:first-child { overflow-wrap: normal; word-break: normal; }
+.itd-table tbody tr:nth-child(even) td { background: var(--subtle); }
+.itd-table tbody tr:hover td { background: #f1f8f4; }
+.itd-table tbody tr.itd-total td { border-top: 2px solid var(--rule); background: var(--card); font-weight: 600; }
+.itd-table tbody tr.is-flag-failed td { background: #fff7f6; }
+.itd-table tbody tr.is-flag-privileged td { background: #fffcf4; }
+.itd-table td .mfd-pill { margin-left: 6px; }
+.itd-table td:first-child .mfd-pill, .itd-table td > .mfd-pill:first-child { margin-left: 0; }
+.itd-table form { margin: 0; }
+.itd-share { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.itd-share .mfd-bar { flex: none; width: 72px; height: 8px; }
+@media (min-width: 640.02px) and (max-width: 1199.98px) {
+    .itd-table.is-roles th, .itd-table.is-roles td, .itd-table.is-roles tbody th { padding: 12px 8px; }
+    .itd-table.is-roles th:first-child { padding-left: 16px; }
+    .itd-table.is-roles th:last-child, .itd-table.is-roles td:last-child { padding-right: 16px; }
+    .itd-table.is-roles thead th { letter-spacing: 0; }
+    .itd-share .mfd-bar { width: 40px; }
+}
+/* phones: one block per role, each figure on its own line with its name on the left */
+@media (max-width: 640px) {
+    .itd-table.is-roles thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .itd-table.is-roles, .itd-table.is-roles tbody, .itd-table.is-roles tr, .itd-table.is-roles tbody th, .itd-table.is-roles td { display: block; }
+    .itd-table.is-roles tbody tr { padding: 12px 16px; border-top: 1px solid var(--line); }
+    .itd-table.is-roles tbody tr:first-child { border-top: 0; }
+    .itd-table.is-roles tbody tr:nth-child(even) { background: var(--subtle); }
+    .itd-table.is-roles tbody tr.itd-total { border-top: 2px solid var(--rule); background: var(--card); }
+    .itd-table.is-roles tbody tr th, .itd-table.is-roles tbody tr td { padding: 4px 0; border: 0 !important; background: transparent !important; }
+    .itd-table.is-roles tbody th { margin-bottom: 4px; font-size: 1rem; }
+    .itd-table.is-roles td { display: flex; align-items: center; justify-content: space-between; gap: 16px; text-align: right; }
+    .itd-table.is-roles td::before { content: attr(data-label); font-size: .875rem; font-weight: 400; color: var(--muted); text-align: left; }
+
+}
+
+/* ---------------------------------------------------------------- filters */
+.itd-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; margin-bottom: 16px; }
+.itd-filters label { display: flex; flex-direction: column; gap: 4px; font-size: .8125rem; font-weight: 600; line-height: 1.3; text-transform: none; letter-spacing: 1px; color: var(--muted); }
+.itd-filters select, .itd-filters input { min-height: 44px; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 4px; background: #fff; color: var(--ink); font-size: .9375rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.itd-filters select:hover, .itd-filters input:hover { border-color: var(--accent); }
+
+/* ---------------------------------------------------------------- charts */
+.itd-range { display: inline-flex; border: 1px solid var(--brand); border-radius: 4px; overflow: hidden; }
+.itd-range button { min-height: 36px; padding: 6px 14px; border: 0; background: #fff; color: var(--brand-ink, var(--brand)); font-size: .875rem; font-weight: 600; cursor: pointer; }
+.itd-range button + button { border-left: 1px solid var(--brand); }
+.itd-range button:hover { background: var(--good-bg); }
+.itd-range button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+/* the bottom margin leaves room for the chart explainer button that app.js adds under the canvas */
+.itd-chart { height: 320px; margin-bottom: 40px; }
+.itd-chart canvas { cursor: pointer; }
+.itd-chart-state { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; padding: 16px; text-align: center; font-weight: 600; color: var(--muted); background: rgba(255, 255, 255, .9); }
+.mfd-chart.is-loading .itd-chart-state { background: transparent; }   /* the shared chart skeleton shows through while loading */
+.itd-spark { display: block; width: 100px; height: 24px; color: var(--brand-ink, var(--brand)); }
+.itd-spark-cell { min-width: 120px; }
+.itd-spark-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.itd-spark-row .itd-spark { width: 160px; height: 32px; }
+.itd-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--gap); }
+@media (min-width: 1500px) { .itd-two { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.itd-heat-wrap { max-width: 100%; overflow-x: auto; }
+.itd-heat { border-collapse: separate; border-spacing: 2px; min-width: 600px; width: 100%; }
+.itd-heat th { padding: 0; text-align: center; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.itd-heat th[scope="row"] { padding-right: 6px; text-align: right; }
+.itd-heat td { height: 24px; min-width: 20px; padding: 0; border: 0; border-radius: 2px; text-align: center; background: #eef2ef; color: var(--ink); font-size: .75rem; }
+.itd-heat td.has { background: color-mix(in srgb, #0f5132 calc(var(--heat) * 85% + 15%), #ffffff); color: #fff; }
+.itd-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: .875rem; color: var(--muted); }
+.itd-legend-scale { width: 90px; height: 10px; border-radius: 2px; background: linear-gradient(90deg, #d5e6dc, #0f5132); }
+.itd-axis { margin-left: auto; font-size: .875rem; color: var(--muted); }
+.itd-bars { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding-top: 16px; }
+.itd-bar { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.itd-bar-fill { width: 100%; border-radius: 2px 2px 0 0; background: var(--accent); }
+.itd-bar-value { font-size: .8125rem; font-weight: 600; }
+.itd-bar-label { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+
+/* ---------------------------------------------------------------- phones */
+@media (max-width: 640px) {
+    .itd .mfd-kpi-value.is-text { flex-wrap: nowrap; gap: 8px; font-size: 1.125rem; }
+    .itd-service { flex-wrap: wrap; gap: 8px 16px; }
+    .itd-feed li { flex-direction: column; gap: 2px; }
+    .itd-chart { height: 280px; }
+    .itd-header-actions, .itd-header-actions .mfd-btn { flex: 1 1 100%; }
+    .itd-table th, .itd-table td { padding: 10px 12px; }
+    .itd-axis { margin-left: 0; }
+    .itd-filters label { flex: 1 1 140px; }
+    .itd-rows > div { align-items: flex-start; }
+}
+
+/* IT Dashboard (2026-10): four titled sections on one screen, no tabs. */
+.itd .itd-section { display: grid; gap: 16px; }
+.itd .itd-section-title { margin: 8px 0 0; font-size: 1.125rem; font-weight: 700; color: var(--ink, #1b1f1d); }
+.itd .itd-more { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }

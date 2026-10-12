@@ -1,0 +1,374 @@
+<?php
+
+namespace Tests\Feature\Auth;
+
+use App\Models\User;
+use App\Services\Security\CaptchaService;
+use Database\Seeders\StaffLoginAccountSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
+
+class AuthenticationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_login_screen_can_be_rendered(): void
+    {
+        $response = $this->get('/login');
+
+        $response->assertStatus(200);
+        $response->assertDontSee(route('captcha.image', ['context' => 'login']), false);
+    }
+
+    public function test_login_screen_shows_captcha_after_three_failed_attempts(): void
+    {
+        $response = $this->withSession([
+            CaptchaService::attemptsSessionKey('login') => 3,
+        ])->get('/login');
+
+        $response->assertStatus(200);
+        $response->assertSee(route('captcha.image', ['context' => 'login']), false);
+    }
+
+    public function test_authenticated_users_can_still_open_login_screen_from_landing_page(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/login');
+
+        $response->assertStatus(200);
+        $response->assertViewIs('auth.login');
+    }
+
+    public function test_login_captcha_image_can_be_rendered(): void
+    {
+        $response = $this->get('/captcha/login');
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'image/svg+xml; charset=UTF-8');
+        $response->assertSee('<svg', false);
+    }
+
+    public function test_users_can_authenticate_using_the_login_screen(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->withSession($this->captchaSession('login', '7'))->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'captcha_answer' => '7',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('farmer.dashboard', absolute: false));
+    }
+
+    public function test_login_fails_when_captcha_is_missing_after_threshold_reached(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->withSession([
+            ...$this->captchaSession('login', '7'),
+            CaptchaService::attemptsSessionKey('login') => 3,
+        ])->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors('captcha_answer');
+    }
+
+    public function test_login_fails_when_captcha_is_invalid_after_threshold_reached(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->withSession([
+            ...$this->captchaSession('login', '7'),
+            CaptchaService::attemptsSessionKey('login') => 3,
+        ])->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'captcha_answer' => '8',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors('captcha_answer');
+    }
+
+    public function test_login_does_not_require_captcha_before_three_failed_attempts(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors('email');
+        $response->assertSessionDoesntHaveErrors('captcha_answer');
+    }
+
+    public function test_failed_login_attempts_below_threshold_still_allow_retry_without_captcha(): void
+    {
+        $user = User::factory()->create();
+
+        // Two failed attempts should not yet require the CAPTCHA.
+        for ($i = 0; $i < 2; $i++) {
+            $this->post('/login', [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ])->assertSessionHasErrors('email');
+        }
+
+        $response = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('farmer.dashboard', absolute: false));
+    }
+
+    public function test_captcha_is_required_after_three_consecutive_failed_attempts(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->post('/login', [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $response = $this->get('/login');
+        $response->assertSee(route('captcha.image', ['context' => 'login']), false);
+
+        $failedLoginResponse = $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $failedLoginResponse->assertSessionHasErrors('captcha_answer');
+    }
+
+    public function test_successful_login_resets_the_failed_attempt_counter(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->post('/login', [
+                'email' => $user->email,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $this->withSession($this->captchaSession('login', '7'))->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'captcha_answer' => '7',
+        ]);
+
+        $this->assertAuthenticated();
+        Auth::logout();
+
+        $response = $this->get('/login');
+        $response->assertDontSee(route('captcha.image', ['context' => 'login']), false);
+    }
+
+    public function test_mao_personnel_is_redirected_after_login(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_MAO]);
+
+        $response = $this->withSession($this->captchaSession('login', '7'))->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'captcha_answer' => '7',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('mao.dashboard', absolute: false));
+    }
+
+    public function test_it_expert_is_redirected_after_login(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_IT_EXPERT]);
+
+        $response = $this->withSession($this->captchaSession('login', '7'))->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+            'captcha_answer' => '7',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('admin.dashboard', absolute: false));
+    }
+
+    public function test_seeded_staff_accounts_sign_in_and_reach_their_own_dashboard(): void
+    {
+        config(['iclimate.staff_account_password' => 'Password@123']);
+        $this->seed(StaffLoginAccountSeeder::class);
+        $this->seed(StaffLoginAccountSeeder::class);
+
+        $this->assertSame(1, User::query()->where('email', 'it@gmail.com')->count());
+        $this->assertSame(1, User::query()->where('email', 'mao@gmail.com')->count());
+        $this->assertNotSame('Password@123', User::query()->where('email', 'it@gmail.com')->value('password'));
+
+        $this->post('/login', ['email' => 'it@gmail.com', 'password' => 'Password@123'])
+            ->assertRedirect(route('admin.dashboard', absolute: false));
+        $this->assertAuthenticated();
+        $this->assertSame(User::ROLE_IT_EXPERT, Auth::user()->role);
+        $this->get(route('admin.dashboard'))->assertOk();
+        $this->get(route('mao.dashboard'))->assertForbidden();
+        $this->post('/logout');
+
+        $this->post('/login', ['email' => 'mao@gmail.com', 'password' => 'Password@123'])
+            ->assertRedirect(route('mao.dashboard', absolute: false));
+        $this->assertSame(User::ROLE_MAO, Auth::user()->role);
+        $this->get(route('mao.dashboard'))->assertOk();
+        $this->get(route('admin.dashboard'))->assertForbidden();
+    }
+
+    public function test_seeded_staff_accounts_reject_a_wrong_password(): void
+    {
+        config(['iclimate.staff_account_password' => 'Password@123']);
+        $this->seed(StaffLoginAccountSeeder::class);
+
+        foreach (['it@gmail.com', 'mao@gmail.com'] as $email) {
+            $response = $this->from('/login')->post('/login', ['email' => $email, 'password' => 'WrongPassword']);
+
+            $this->assertGuest();
+            $this->followRedirects($response)->assertSee('Unable to sign in. Please check your email and password.');
+        }
+    }
+
+    public function test_staff_accounts_are_not_seeded_without_a_configured_password(): void
+    {
+        config(['iclimate.staff_account_password' => null]);
+        $this->seed(StaffLoginAccountSeeder::class);
+
+        $this->assertSame(0, User::query()->whereIn('email', ['it@gmail.com', 'mao@gmail.com'])->count());
+    }
+
+    public function test_login_ignores_stray_spaces_and_capitals_in_the_email(): void
+    {
+        $user = User::factory()->create(['email' => 'juan@example.com']);
+
+        $response = $this->post('/login', ['email' => '  Juan@Example.com ', 'password' => 'password']);
+
+        $this->assertAuthenticatedAs($user);
+        $response->assertRedirect(route('farmer.dashboard', absolute: false));
+    }
+
+    public function test_login_does_not_follow_a_remembered_page_the_role_can_not_open(): void
+    {
+        $mao = User::factory()->create(['role' => User::ROLE_MAO]);
+
+        $this->get(route('admin.dashboard'))->assertRedirect(route('login'));
+
+        $this->post('/login', ['email' => $mao->email, 'password' => 'password'])
+            ->assertRedirect(route('mao.dashboard', absolute: false));
+    }
+
+    public function test_login_returns_to_a_remembered_page_the_role_can_open(): void
+    {
+        $mao = User::factory()->create(['role' => User::ROLE_MAO]);
+
+        $this->get(route('profile.edit'))->assertRedirect(route('login'));
+
+        $this->post('/login', ['email' => $mao->email, 'password' => 'password'])
+            ->assertRedirect(route('profile.edit'));
+    }
+
+    public function test_farmers_can_not_open_the_staff_dashboards(): void
+    {
+        $farmer = User::factory()->create();
+
+        $this->actingAs($farmer)->get(route('admin.dashboard'))->assertForbidden();
+        $this->actingAs($farmer)->get(route('mao.dashboard'))->assertForbidden();
+    }
+
+    public function test_users_can_not_authenticate_with_invalid_password(): void
+    {
+        $user = User::factory()->create();
+
+        $this->withSession($this->captchaSession('login', '7'))->post('/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+            'captcha_answer' => '7',
+        ]);
+
+        $this->assertGuest();
+    }
+
+    public function test_failed_login_shows_inline_alert_without_revealing_which_field_was_wrong(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->from('/login')->post('/login', [
+            'email' => $user->email,
+            'password' => 'wrong-password',
+        ]);
+
+        $this->assertGuest();
+        $this->followRedirects($response)
+            ->assertSee('Unable to sign in. Please check your email and password.')
+            ->assertSee('value="'.$user->email.'"', false);
+    }
+
+    public function test_inactive_account_can_not_sign_in(): void
+    {
+        $user = User::factory()->create(['status' => User::STATUS_INACTIVE]);
+
+        $response = $this->from('/login')->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $this->followRedirects($response)
+            ->assertSee('This account is inactive. Please contact the administrator.');
+    }
+
+    public function test_remember_me_sets_the_remember_cookie_only_when_checked(): void
+    {
+        $user = User::factory()->create();
+        $recaller = Auth::guard('web')->getRecallerName();
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'password', 'remember' => 'on'])
+            ->assertCookie($recaller);
+        Auth::logout();
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertCookieMissing($recaller);
+    }
+
+    public function test_users_can_logout(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/logout');
+
+        $this->assertGuest();
+        $response->assertRedirect('/');
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function captchaSession(string $context, string $answer): array
+    {
+        return [
+            CaptchaService::SESSION_KEY => [
+                'context' => $context,
+                'question' => 'What is 3 + 4?',
+                'answer_hash' => Hash::make($answer),
+                'created_at' => now()->timestamp,
+            ],
+        ];
+    }
+}

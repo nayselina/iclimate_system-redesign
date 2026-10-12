@@ -1,0 +1,171 @@
+"""
+iClimate ML service — FastAPI replacement for farming_assistant_api.py (Flask).
+
+Routes:
+  GET  /health                    liveness + which models are loaded
+  POST /predict                   rice yield + weather label (same contract
+                                   PredictionEngine.php already sends to
+                                   PythonService::farmingAssistant())
+  POST /forecast/monthly-weather  monthly rainfall/temperature/humidity/wind
+                                   forecast (Python port of
+                                   MonthlyWeatherRandomForest.php)
+  GET  /model-info                rice model currently in memory (filename,
+                                   version, sha256, sklearn, load time)
+  POST /model/switch              swap the rice model (needs ML_ADMIN_TOKEN)
+  GET  /metrics                   real, computed model-evaluation metrics —
+                                   replaces ModelEvaluationService.php's
+                                   hardcoded TRAINED_MODEL_RESULTS constant
+
+Run standalone for local testing:
+    uvicorn python_scripts.main:app --host 127.0.0.1 --port 8000 --reload
+
+This is the live ML backend — app/Services/PythonService.php posts to this
+service's /predict route. The legacy Flask app has been removed.
+"""
+
+import hmac
+import os
+from contextlib import asynccontextmanager
+from datetime import date
+from typing import Optional
+
+from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel, Field
+
+import evaluation_service
+import analytics_tasks
+import monthly_weather_random_forest
+import rice_yield_service
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load once at startup instead of on first request, so the first real
+    # prediction isn't the one that pays the joblib.load() cost.
+    try:
+        rice_yield_service.load_models()
+    except Exception:
+        # Don't crash the service if models are temporarily missing/broken —
+        # /health will report it, and /predict will raise a clear 503.
+        pass
+
+    yield
+
+
+app = FastAPI(title="iClimate ML Service", version="0.1.0", lifespan=lifespan)
+
+
+@app.get("/health")
+def health():
+    try:
+        models = rice_yield_service.load_models()
+        loaded = sorted(models.keys())
+    except Exception as exc:
+        return {"status": "degraded", "models_loaded": [], "error": str(exc)}
+
+    return {"status": "ok", "models_loaded": loaded}
+
+
+@app.get("/model-info")
+def model_info():
+    """Which rice-yield model is in memory right now (no filesystem paths)."""
+    try:
+        rice_yield_service.load_models()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Models unavailable: {exc}") from exc
+
+    return rice_yield_service.model_info()
+
+
+class SwitchModelRequest(BaseModel):
+    path: str
+    version: Optional[str] = None
+    sha256: Optional[str] = None
+
+
+@app.post("/model/switch")
+def switch_model(payload: SwitchModelRequest, x_model_admin_token: Optional[str] = Header(default=None)):
+    """Swap the rice-yield model. Disabled unless ML_ADMIN_TOKEN is set."""
+    expected = os.environ.get("ML_ADMIN_TOKEN") or ""
+
+    if not expected or not x_model_admin_token or not hmac.compare_digest(expected, x_model_admin_token):
+        raise HTTPException(status_code=403, detail="Model switching is not permitted.")
+
+    try:
+        return rice_yield_service.switch_rice_model(payload.path, payload.version, payload.sha256)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        # The previous model keeps serving; nothing was swapped.
+        raise HTTPException(status_code=500, detail="Model could not be loaded.") from exc
+
+
+class PredictRequest(BaseModel):
+    prediction_type: str = Field(..., description="'rice_yield' or 'weather'")
+    features: dict = Field(default_factory=dict)
+
+
+@app.post("/predict")
+def predict(payload: PredictRequest):
+    if payload.prediction_type not in {"weather", "rice_yield"}:
+        raise HTTPException(status_code=422, detail="Unsupported or missing prediction_type. Use 'weather' or 'rice_yield'.")
+
+    try:
+        rice_yield_service.load_models()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Models unavailable: {exc}") from exc
+
+    try:
+        if payload.prediction_type == "weather":
+            models = rice_yield_service.load_models()
+            raw_weather = models["weather"].predict(rice_yield_service.weather_features(payload.features))[0]
+            predicted_weather = rice_yield_service.weather_label(raw_weather)
+            confidence = rice_yield_service.confidence_for(predicted_weather, None, None)
+
+            return {
+                "weather_prediction": {
+                    "predicted_weather": predicted_weather,
+                    "raw_prediction": float(raw_weather) if str(raw_weather).replace(".", "", 1).isdigit() else str(raw_weather),
+                    "confidence": confidence,
+                    "explanation": "The weather model used previous rainfall, temperature, humidity, wind speed, month, and season.",
+                    "source_type": "Trained Model API",
+                    "source_name": "iClimate FastAPI weather model",
+                    "source_credit": "Weather output generated by the iClimate FastAPI trained weather model.",
+                },
+                "source_type": "Trained Model API",
+                "source_name": "iClimate FastAPI weather model",
+                "source_credit": "Prediction values came from the trained iClimate weather model.",
+                "confidence_score": confidence,
+            }
+
+        return rice_yield_service.predict(payload.features)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class MonthlyWeatherRequest(BaseModel):
+    target_month: date
+    climate_records: list[dict]
+
+
+@app.post("/forecast/monthly-weather")
+def forecast_monthly_weather(payload: MonthlyWeatherRequest):
+    try:
+        return monthly_weather_random_forest.predict(payload.target_month, payload.climate_records)
+    except (KeyError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid climate_records entry: {exc}") from exc
+
+
+@app.get("/metrics")
+def metrics(dataset_path: Optional[str] = None):
+    return evaluation_service.evaluate(dataset_path)
+
+
+@app.post("/analytics/{task_type}")
+def analytics(task_type: str, payload: dict):
+    try:
+        return analytics_tasks.run(task_type, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Analytics processing failed: {exc}") from exc

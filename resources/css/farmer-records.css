@@ -1,0 +1,214 @@
+/*
+ * Farmer record pages: Climate Records, Rice Production and Notifications (resources/views/farmer-records/*),
+ * plus their detail page. Built on the farmer design system in farmer-advisories.css (.fad tokens, header, buttons,
+ * badges, filters, empty states); only page parts live here. Staff (MAO, IT) keep the shared crud views.
+ */
+
+/* ------------------------------------------------------------ KPI row */
+.frec-kpis { display: grid; gap: var(--gap); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@container fad (min-width: 900px) { .frec-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container fad (max-width: 459.98px) { .frec-kpis { grid-template-columns: minmax(0, 1fr); } }
+.frec-kpi { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 20px 24px; background: var(--card); border: 1px solid var(--rule); border-top: 3px solid var(--brand); border-radius: 6px; }
+.frec-kpi .fad-label { margin-bottom: 2px; }
+.frec-kpi-value { display: flex; align-items: baseline; gap: 6px; font-size: 1.75rem; font-weight: 700; line-height: 1.2; color: var(--ink); font-variant-numeric: tabular-nums; }
+.frec-kpi-value small { font-size: .9375rem; font-weight: 600; color: var(--muted); }
+
+/* ------------------------------------------------------------ panels */
+.frec-panel { display: grid; gap: 16px; min-width: 0; padding: 24px; background: var(--card); border: 1px solid var(--rule); border-radius: 6px; }
+.frec-panel-head { display: grid; gap: 4px; padding-bottom: 12px; border-bottom: 2px solid var(--brand); }
+.frec-panel-head.is-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.frec-panel-head h2 { font-family: var(--serif) !important; font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.frec-takeaway { font-size: 1rem; font-weight: 600; color: var(--ink); }
+.frec-note { display: grid; gap: 6px; padding: 16px 20px; background: var(--subtle); border: 1px solid var(--line); border-left: 4px solid var(--info); border-radius: 6px; }
+.frec-note a { color: var(--brand-ink, var(--brand)); font-weight: 600; }
+/* The Lian label leads; the station is a smaller, still visible provenance note under it. */
+.frec-reference { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin: 0; }
+.frec-reference strong { color: var(--ink, inherit); }
+.frec-provenance { margin: 0; font-size: .82em; color: var(--muted, inherit); }
+
+/* ------------------------------------------------------------ comparison bars (real values, drawn to one scale) */
+.frec-bars { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.frec-bars li { display: grid; grid-template-columns: minmax(140px, 220px) minmax(0, 1fr) 96px; align-items: center; gap: 12px; }
+.frec-bar-label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: .875rem; font-weight: 600; color: var(--ink); }
+.frec-bar { height: 18px; border-radius: 2px; background: #eef2ef; overflow: hidden; }
+.frec-bar > i { display: block; height: 100%; background: var(--info); }
+.frec-bars.is-yield .frec-bar > i { background: #7fa892; }
+.frec-bars li.is-mine .frec-bar > i { background: var(--brand); }
+.frec-bar-value { font-size: .875rem; font-weight: 600; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+@container fad (max-width: 599.98px) {
+    .frec-bars li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+    .frec-bar { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ------------------------------------------------------------ table (wide) / cards (narrow) */
+.frec-table-wrap { border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; }
+.frec-table { width: 100%; border-collapse: collapse; font-size: .9375rem; }
+.frec-table th, .frec-table td { padding: 14px 16px; text-align: left; vertical-align: middle; border-top: 1px solid var(--line); color: var(--ink); }
+.frec-table thead th { border-top: 0; background: var(--head-bg); font-size: .8125rem; font-weight: 600; text-transform: none; letter-spacing: 1px; color: var(--head); white-space: nowrap; }
+.frec-table tbody th { font-weight: 600; white-space: nowrap; }
+.frec-table tbody tr:nth-child(even) > * { background: #fbfcfb; }
+.frec-table tbody tr.is-mine > * { background: #f1f8f4; }
+.frec-table .is-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.frec-table .is-end { text-align: right; white-space: nowrap; }
+.frec-table .is-end form { display: inline; margin: 0; }
+.frec-cards { display: none; margin: 0; padding: 0; list-style: none; }
+.frec-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--rule); border-radius: 6px; background: #fff; }
+.frec-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.frec-card-head h3 { font-size: 1.0625rem; font-weight: 700; color: var(--ink); }
+.frec-facts, .frec-detail { margin: 0; border-top: 1px solid var(--line); }
+.frec-facts > div, .frec-detail > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.frec-facts dt, .frec-detail dt { font-size: .8125rem; font-weight: 600; text-transform: none; letter-spacing: 1px; color: var(--muted); }
+.frec-facts dd, .frec-detail dd { margin: 0; font-size: .9375rem; font-weight: 600; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.frec-card .fad-btn { width: 100%; }
+@container fad (max-width: 899.98px) {
+    .frec-table-wrap { display: none; }
+    .frec-cards { display: grid; gap: 12px; }
+}
+@container fad (min-width: 600px) and (max-width: 899.98px) { .frec-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* detail page */
+.frec-detail > div { padding: 12px 0; }
+.frec-detail dd { font-size: 1rem; }
+.frec-message { font-size: 1rem; line-height: 1.6; white-space: pre-line; color: var(--ink); max-width: 75ch; }
+
+/* ------------------------------------------------------------ notifications */
+.frec-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.frec-tab {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 18px; border: 1px solid var(--rule); border-radius: 6px;
+    background: var(--card); color: var(--ink); font-size: .9375rem; font-weight: 600; text-decoration: none;
+}
+.frec-tab:hover { border-color: var(--brand); color: var(--brand-ink, var(--brand)); }
+.frec-tab.is-active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.frec-tab:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+.frec-tab-count { font-size: .8125rem; font-weight: 600; opacity: .8; font-variant-numeric: tabular-nums; }
+.frec-tab.is-active .fad-count { background: #fff; color: var(--brand-ink, var(--brand)); }
+.frec-notes { display: grid; margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.frec-noteitem { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 16px 12px; border-bottom: 1px solid var(--line); }
+.frec-noteitem.is-unread { background: #f4faf6; box-shadow: inset 4px 0 0 var(--brand); }
+.frec-note-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--rule); background: var(--subtle); color: var(--brand-ink, var(--brand)); }
+.frec-note-icon[data-type="warning"] { color: var(--watch-ink); background: var(--watch-bg); border-color: var(--watch-line); }
+.frec-note-icon[data-type="advisory"] { color: var(--info-ink); background: var(--info-bg); border-color: var(--info-line); }
+.frec-note-body { display: grid; gap: 6px; min-width: 0; }
+.frec-note-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.frec-note-title { font-size: 1rem; font-weight: 500; line-height: 1.35; }
+.frec-noteitem.is-unread .frec-note-title { font-weight: 700; }
+.frec-note-title a { color: var(--ink); text-decoration: none; }
+.frec-note-title a:hover { color: var(--brand-ink, var(--brand)); text-decoration: underline; }
+.frec-note-title a:focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
+.frec-note-text { font-size: .9375rem; line-height: 1.5; color: var(--muted); overflow-wrap: anywhere; }
+.frec-note-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.frec-note-actions form { margin: 0; }
+@container fad (max-width: 639.98px) {
+    .frec-noteitem { grid-template-columns: 40px minmax(0, 1fr); }
+    .frec-note-actions { grid-column: 1 / -1; justify-content: stretch; }
+    .frec-note-actions > *, .frec-note-actions .fad-btn { flex: 1 1 auto; }
+}
+
+@media (max-width: 767.98px) {
+    .frec-panel { padding: 16px; }
+    .frec-panel-head h2 { font-size: 1.25rem; }
+    .frec-kpi { padding: 16px; }
+    .frec-kpi-value { font-size: 1.5rem; }
+    .frec-tab { flex: 1 1 auto; justify-content: center; }
+}
+
+/* ------------------------------------------------------------------ "Aking Bukid" (farmer-records/my-farm). */
+.fmf .fmf-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 0; }
+.fmf .fmf-facts dt { font-size: .8rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: #5b6660; }
+.fmf .fmf-facts dd { margin: 4px 0 0; font-size: 1.2rem; font-weight: 700; color: #1b1f1d; }
+.fmf .fmf-events { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fmf .fmf-events li { display: flex; gap: 14px; align-items: baseline; padding: 10px 12px; border: 1px solid #e3e8e5; border-radius: 8px; }
+.fmf .fmf-print-head { display: none; }
+html[data-theme="dark"] .fmf .fmf-facts dd { color: #e4ece7; }
+html[data-theme="dark"] .fmf .fmf-facts dt { color: #9fb5aa; }
+html[data-theme="dark"] .fmf .fmf-events li { border-color: #2a3b33; }
+
+/* Paper: the office header and the print date, no sidebar, buttons or calendar; every record is listed. */
+@media print {
+    .ic-sidebar, nav.topbar, #icAiLauncher, #icAiWidget, .fmf .fmf-no-print, .fmf .fad-hero-actions { display: none !important; }
+    body:has(.fmf) .app-main { margin-left: 0 !important; }
+    body:has(.fmf) .page-shell { padding: 0 !important; }
+    .fmf .fmf-print-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #000; }
+    .fmf .fmf-print-head strong { font-size: 16pt; }
+    .fmf .fad-hero { background: none !important; color: #000 !important; padding: 0 !important; }
+    .fmf .frec-table-wrap { overflow: visible !important; }
+    .fmf .frec-panel { break-inside: avoid; border: 0 !important; box-shadow: none !important; }
+}
+
+/* ------------------------------------------------------------------ Farmer – Naicel (2026-10): My Farm
+ * The Activity Calendar (a grid; a list on the phone), the harvest question and the
+ * pop-ups (full width on the phone). All under .fmf, so no other page changes. */
+
+.fmf .fmf-cal-intro { margin: 0 0 10px; }
+.fmf .fmf-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.fmf .fmf-cal-nav strong { font-size: 1.15rem; }
+.fmf .fmf-cal-nav .fad-btn { min-width: 44px; min-height: 44px; font-size: 1.4rem; line-height: 1; }
+.fmf .fmf-cal { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.fmf .fmf-cal th { padding: 6px 2px; font-size: .8rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: #5b6660; text-align: center; }
+.fmf .fmf-cal td { height: 84px; padding: 0; border: 1px solid #e3e8e5; vertical-align: top; }
+.fmf .fmf-cal td.is-out { background: #f8faf9; }
+.fmf .fmf-cal td.is-today { box-shadow: inset 0 0 0 2px #198754; }
+.fmf .fmf-cal-day { display: flex; flex-direction: column; align-items: stretch; gap: 3px; width: 100%; height: 100%; min-height: 84px; padding: 6px; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.fmf .fmf-cal-day:hover, .fmf .fmf-cal-day:focus-visible { background: #e6f4ec; }
+.fmf .fmf-cal-num { font-weight: 700; }
+.fmf .fmf-cal-event { display: block; padding: 2px 6px; border-radius: 6px; font-size: .78rem; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fmf .fmf-cal-event small { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+.fmf .fmf-cal-event.is-planted, .fmf .fmf-cal-item.is-planted strong { background: #e6f4ec; color: #0f5132; }
+.fmf .fmf-cal-event.is-harvested, .fmf .fmf-cal-item.is-harvested strong { background: #fbf1dc; color: #7a4f0a; }
+.fmf .fmf-cal-event.is-expected, .fmf .fmf-cal-item.is-expected strong { background: #e8f1f9; color: #1a5c96; }
+.fmf .fmf-cal-list { display: none; flex-direction: column; gap: 8px; }
+.fmf .fmf-cal-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 48px; border: 1px solid #e3e8e5; border-radius: 8px; color: inherit; text-decoration: none; }
+.fmf .fmf-cal-item strong { flex: 0 0 auto; min-width: 64px; padding: 4px 8px; border-radius: 6px; text-align: center; }
+
+.fmf .fmf-survey { display: flex; flex-direction: column; gap: 10px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid #edd29c; border-radius: 10px; background: #fdf8ec; }
+.fmf .fmf-survey[hidden] { display: none; }
+.fmf .fmf-survey-text { display: flex; flex-direction: column; gap: 2px; }
+.fmf .fmf-survey-text strong { font-size: 1.15rem; }
+.fmf .fmf-survey-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.fmf .fmf-survey-row .fmf-field { flex: 0 1 220px; margin: 0; }
+.fmf .fmf-survey-predicted { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.fmf .fmf-survey-predicted span { font-size: .8rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: #5b6660; }
+.fmf .fmf-survey-predicted strong { font-size: 1.5rem; line-height: 1.2; }
+.fmf .fmf-survey-predicted small { font-size: .95rem; font-weight: 600; color: #5b6660; }
+.fmf .fmf-survey-actions, .fmf .fmf-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.fmf .fmf-survey-actions .fad-btn, .fmf .fmf-dialog-actions .fad-btn { min-height: 44px; }
+
+.fmf .fmf-field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 14px; padding: 0; border: 0; min-width: 0; }
+.fmf .fmf-field > span, .fmf .fmf-field > legend { float: none; width: auto; margin: 0; padding: 0; font-size: 1rem; font-weight: 700; color: #1b1f1d; }
+.fmf .fmf-field .fad-input { width: 100%; min-height: 48px; font-size: 1rem; }
+.fmf .fmf-choices { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.fmf .fmf-choices > legend { flex-basis: 100%; margin-bottom: 6px; }
+.fmf .fmf-choice { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 8px 16px; border: 1px solid #cbd5cf; border-radius: 999px; background: #fff; font-weight: 600; cursor: pointer; }
+.fmf .fmf-choice:has(input:checked) { border-color: #0f5132; background: #e6f4ec; color: #0f5132; }
+.fmf .fmf-error { margin: 0 0 12px; padding: 10px 14px; border: 1px solid #f1b9b9; border-radius: 8px; background: #fdf0f0; color: #8a1f1f; font-weight: 600; list-style: none; }
+
+.fmf .fmf-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 22px 24px; border: 0; border-radius: 14px; background: #fff; color: #1b1f1d; overflow: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.fmf .fmf-dialog::backdrop { background: rgba(10, 25, 18, .55); }
+.fmf .fmf-dialog h2 { margin: 0 0 14px; font-size: 1.35rem; font-weight: 700; }
+.fmf .fmf-dialog form { margin: 0; }
+
+@media (max-width: 639.98px) {
+    /* Phone: the month as a simple list instead of a grid; pop-ups take the full width at the bottom of the screen. */
+    .fmf .fmf-cal { display: none; }
+    .fmf .fmf-cal-list { display: flex; }
+    .fmf .fmf-cal-intro { display: none; }
+    .fmf .frec-panel-head.is-row { flex-wrap: wrap; gap: 8px; }
+    .fmf .fmf-survey-row .fmf-field { flex: 1 1 100%; }
+    .fmf .fmf-survey-actions .fad-btn, .fmf .fmf-dialog-actions .fad-btn { flex: 1 1 0; }
+    .fmf .fmf-dialog { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; padding: 20px 16px; border-radius: 16px 16px 0 0; }
+    .fmf .fmf-choice { flex: 1 1 auto; justify-content: center; }
+}
+html[data-theme="dark"] .fmf .fmf-cal td.is-out { background: #16211c; }
+html[data-theme="dark"] .fmf .fmf-cal-day:hover, html[data-theme="dark"] .fmf .fmf-cal-day:focus-visible { background: #1d3327; }
+html[data-theme="dark"] .fmf .fmf-cal-event.is-planted, html[data-theme="dark"] .fmf .fmf-cal-item.is-planted strong { background: #1d3327; color: #9fe0bb; }
+html[data-theme="dark"] .fmf .fmf-cal-event.is-harvested, html[data-theme="dark"] .fmf .fmf-cal-item.is-harvested strong { background: #3a2f14; color: #f1d08a; }
+html[data-theme="dark"] .fmf .fmf-cal-event.is-expected, html[data-theme="dark"] .fmf .fmf-cal-item.is-expected strong { background: #17293a; color: #9ccbf2; }
+html[data-theme="dark"] .fmf .fmf-survey { background: #2a2414; border-color: #5c4a1c; }
+html[data-theme="dark"] .fmf .fmf-choice { background: #16211c; border-color: #2a3b33; color: #e4ece7; }
+html[data-theme="dark"] .fmf .fmf-choice:has(input:checked) { background: #1d3327; border-color: #6fcf97; color: #9fe0bb; }
+html[data-theme="dark"] .fmf .fmf-dialog { background: #16211c; color: #e4ece7; }
+html[data-theme="dark"] .fmf .fmf-error { background: #3a1b1b; border-color: #7a3131; color: #f3b6b6; }
+@media print {
+    .fmf .fmf-dialog { display: none !important; }
+}
+/* ------------------------------------------------------------------ end Farmer – Naicel */

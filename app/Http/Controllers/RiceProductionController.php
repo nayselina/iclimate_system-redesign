@@ -1,0 +1,322 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\RiceProduction;
+use App\Support\LianBarangays;
+use App\Support\ProjectYieldDataset;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
+use Throwable;
+
+class RiceProductionController extends CrudController
+{
+    protected string $model = RiceProduction::class;
+
+    protected string $routeName = 'rice-productions';
+
+    protected string $title = 'Rice Production Record';
+
+    /** Production data is the MAO's to enter and correct; IT views it (2026-10). */
+    protected array $manageableRoles = [\App\Models\User::ROLE_MAO];
+
+    protected bool $printable = true;
+
+    // Manuscript – Naicel (2026-10-08): Area Planted / Area Harvested and Validated.
+    protected array $columns = ['barangay' => 'Barangay', 'production_month' => 'Production Month', 'season' => 'Season', 'irrigation_type' => 'Irrigation', 'yield_per_hectare' => 'Yield (t/ha)', 'area_hectares' => 'Area Planted (ha)', 'area_harvested_hectares' => 'Area Harvested (ha)', 'total_production' => 'Total Harvest (t)', 'year' => 'Year', 'verification' => 'Validated', 'verified_by_label' => 'Validated by'];
+
+    protected array $searchable = ['barangay', 'season', 'irrigation_type', 'year', 'remarks'];
+
+    protected array $filterable = ['season' => ['Wet', 'Dry'], 'irrigation_type' => ['Rainfed', 'Irrigated']];
+
+    protected bool $farmerPages = true;
+
+    // Panel revision 4.4 B: technologists see and change the records of their own barangays.
+    protected ?string $barangayColumn = 'barangay';
+
+
+    /** What the dataset rows cover: Lian as a whole, not one barangay. */
+    public const DATASET_SCOPE = 'Lian Municipal Average';
+
+    /** The plain source name of the dataset rows (the stored file is not shown to farmers). */
+    public const DATASET_SOURCE = 'iClimate rice yield records';
+
+    private const FARMER_PER_PAGE = CrudController::PER_PAGE;
+
+    /**
+     * Everyone sees the rice_productions rows together with the project's own yield history (ProjectYieldDataset:
+     * the AVERAGE_YIELD column of the modeling dataset the rice-yield model was built from, the same series the
+     * dashboards use). Farmers get their own page; MAO and IT get the management list. Dataset rows are read-only.
+     */
+    public function index(Request $request): View
+    {
+        $this->authorizeView($request);
+        $records = $this->records();
+
+        return $this->usesFarmerPages($request)
+            ? $this->farmerIndex($request, $records)
+            : $this->staffIndex($request, $records);
+    }
+
+    /** @param  Collection<int, object>  $records */
+    private function staffIndex(Request $request, Collection $records): View
+    {
+        // Panel revision 4.4 B: the assigned view lists only the MAO user's barangays (not the municipal dataset rows).
+        if (($covered = \App\Support\MaoScope::barangays($request->user())) !== null) {
+            $records = $records->filter(fn (object $r): bool => ! $r->is_source_dataset && in_array($r->barangay, $covered, true))->values();
+        }
+        $rows = $records->map(fn (object $r): object => (object) [
+            'id' => $r->id,
+            'is_source_dataset' => $r->is_source_dataset,
+            'source_note' => 'iClimate yield dataset · read-only',
+            'barangay' => $r->barangay,
+            'production_month' => $r->production_month?->format('M Y'),
+            'season' => $r->season,
+            'irrigation_type' => $r->irrigation_type,
+            'yield_per_hectare' => self::plainNumber($r->yield_per_hectare, ' t/ha'),
+            'area_hectares' => self::plainNumber($r->area_hectares, ' ha'),
+            'total_production' => self::plainNumber($r->total_production, ' t'),
+            'year' => $r->year,
+            // Manuscript – Naicel (2026-10-08)
+            'area_harvested_hectares' => self::plainNumber($r->area_harvested_hectares, ' ha'),
+            'verification' => $r->is_source_dataset ? 'Published dataset' : ($r->verified ? 'Validated' : 'Not validated'),
+            'verified_by_label' => $r->verified_by_label ?? null,   // panel revision 4.4 C
+            'search_text' => $r->search_text,
+            'sort_key' => $r->sort_key,
+        ]);
+
+        // Manuscript – Naicel (2026-10-08): + year, barangay and Validated filters.
+        return $this->staffRowsIndex($request, $rows, $this->filterChoices($records) + [
+            'year' => $records->pluck('year')->filter()->unique()->sortDesc()->mapWithKeys(fn ($v) => [$v => $v])->all(),
+            'barangay' => $records->where('is_source_dataset', false)->pluck('barangay')->filter()->unique()->sort()->mapWithKeys(fn ($v) => [$v => $v])->all(),
+            'verification' => ClimateRecordController::VERIFICATION_CHOICES,
+        ]);
+    }
+
+    /**
+     * The farmer page: the same records, search, filters and newest-first order as the staff list, with figures
+     * worked out only from values the records really hold. Municipal rows stay visible whatever the farmer's
+     * barangay; they are labelled as Lian's average, never as a barangay's.
+     *
+     * @param  Collection<int, object>  $records
+     */
+    private function farmerIndex(Request $request, Collection $records): View
+    {
+        $search = is_string($request->query('search')) ? trim($request->query('search')) : '';
+        $needle = mb_strtolower($search);
+        $filterable = $this->filterChoices($records);
+        $filters = collect(array_keys($filterable))
+            ->mapWithKeys(fn (string $field) => [$field => $request->query($field)])
+            ->filter(fn ($value) => is_string($value) && $value !== '');
+
+        $filtered = $records
+            ->filter(fn (object $r): bool => ($needle === '' || str_contains($r->search_text, $needle))
+                && $filters->every(fn (string $value, string $field): bool => (string) ($r->{$field} ?? '') === $value))
+            ->sortBy(fn (object $r): string => $r->sort_key, SORT_STRING, true)
+            ->values();
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $barangay = $request->user()->barangay;
+        // Each figure uses only the records that hold that value; one that none hold stays missing (null), never 0.
+        $values = fn (string $field) => $filtered->pluck($field)->filter(fn ($v) => $v !== null);
+
+        return view('farmer-records.rice-productions', [
+            'title' => $this->title,
+            'routeName' => $this->routeName,
+            'search' => $search,
+            'filterable' => $filterable,
+            'canManage' => $this->canManage($request),
+            'records' => new LengthAwarePaginator($filtered->forPage($page, self::FARMER_PER_PAGE)->values(), $filtered->count(), self::FARMER_PER_PAGE, $page, [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]),
+            'stats' => (object) [
+                'records' => $filtered->count(),
+                'total_production' => $values('total_production')->isNotEmpty() ? $values('total_production')->sum() : null,
+                'avg_yield' => $values('yield_per_hectare')->isNotEmpty() ? $values('yield_per_hectare')->avg() : null,
+                'total_area' => $values('area_hectares')->isNotEmpty() ? $values('area_hectares')->sum() : null,
+                'latest_year' => $filtered->max('year'),
+            ],
+            // The latest 16 records with a yield, oldest first, so the bars read left to right in time.
+            'yieldBars' => $filtered->filter(fn ($r) => $r->yield_per_hectare !== null)->take(16)->reverse()->values(),
+            'farmerBarangay' => $barangay,
+            'ownBarangayCount' => $barangay ? $filtered->where('is_source_dataset', false)->where('barangay', $barangay)->count() : 0,
+            'datasetSource' => self::DATASET_SOURCE,
+        ]);
+    }
+
+    /**
+     * Season and irrigation choices from the records themselves: only irrigation types that records actually
+     * have (the yield dataset does not record one, so its rows match only "All").
+     *
+     * @param  Collection<int, object>  $records
+     * @return array<string, array<string, string>>
+     */
+    private function filterChoices(Collection $records): array
+    {
+        $choices = fn (string $field) => $records->pluck($field)->filter()->unique()->sort()->mapWithKeys(fn ($v) => [$v => $v])->all();
+
+        return ['season' => $choices('season'), 'irrigation_type' => $choices('irrigation_type')];
+    }
+
+    /**
+     * Every rice record: one read-only row per month of the yield dataset, then every rice_productions row.
+     * A dataset row is Lian's municipal monthly average, so it is never the same record as a barangay row for
+     * the same month; both are listed.
+     *
+     * @return Collection<int, object>
+     */
+    private function records(): Collection
+    {
+        return $this->datasetRows()->concat($this->enteredRows())->values();
+    }
+
+    /**
+     * One read-only row per month on file: the municipal average yield (t/ha) and season, exactly as stored. The
+     * dataset has no barangay, irrigation type, planted area or production, so those stay missing, never 0.
+     *
+     * @return Collection<int, object>
+     */
+    private function datasetRows(): Collection
+    {
+        try {
+            $rows = app(ProjectYieldDataset::class)->rows();
+        } catch (Throwable $exception) {
+            Log::warning('Rice production records: the yield dataset could not be read.', ['message' => $exception->getMessage()]);
+
+            return collect();
+        }
+
+        return $rows->map(function (array $row): object {
+            $month = Carbon::create($row['year'], $row['month'], 1);
+
+            return (object) [
+                'id' => null,
+                'is_source_dataset' => true,
+                'barangay' => self::DATASET_SCOPE,
+                'production_month' => $month,
+                'season' => $row['season'] ?? null,
+                'irrigation_type' => null,
+                'yield_per_hectare' => (float) $row['yield'],
+                'area_hectares' => null,
+                'total_production' => null,
+                'area_harvested_hectares' => null,   // Manuscript – Naicel
+                'verified' => false,
+                'year' => $row['year'],
+                // Short enough for the bar label column (one line, like "2024 Wet · Lumaniag").
+                'bar_label' => $month->format('M Y').' · Lian average',
+                'search_text' => mb_strtolower(implode(' ', [self::DATASET_SCOPE, 'municipal average dataset', self::DATASET_SOURCE, $month->format('M Y'), $month->format('F Y'), $month->format('Y-m'), $row['season'] ?? ''])),
+                'sort_key' => $month->format('Y-m').'|1',
+            ];
+        });
+    }
+
+    /** @return Collection<int, object> */
+    private function enteredRows(): Collection
+    {
+        try {
+            // Manuscript – Naicel: + area_harvested_hectares, verified_at
+            $records = RiceProduction::query()->with('verifier:id,name')->get(['id', 'barangay', 'season', 'irrigation_type', 'yield_per_hectare', 'area_hectares', 'area_harvested_hectares', 'verified_at', 'verified_by', 'total_production', 'year', 'production_month', 'remarks']);
+        } catch (QueryException $exception) {
+            Log::warning('Rice production records: rice_productions could not be read.', ['message' => $exception->getMessage()]);
+
+            return collect();
+        }
+
+        $number = fn ($value) => is_numeric($value) ? (float) $value : null;
+
+        return $records->map(fn (RiceProduction $record): object => (object) [
+            'id' => $record->id,
+            'is_source_dataset' => false,
+            'barangay' => $record->barangay,
+            'production_month' => $record->production_month,
+            'season' => $record->season,
+            'irrigation_type' => $record->irrigation_type,
+            'yield_per_hectare' => $number($record->yield_per_hectare),
+            'area_hectares' => $number($record->area_hectares),
+            'total_production' => $number($record->total_production),
+            'area_harvested_hectares' => $number($record->area_harvested_hectares),   // Manuscript – Naicel
+            'verified' => $record->verified_at !== null,
+            // Panel revision 4.4 C: "Evelyn M. Mayari · Oct 10, 2026, 4:16 PM".
+            'verified_by_label' => $record->verified_at ? trim(($record->verifier?->name ?? '').' · '.\App\Support\MaoStamp::format($record->verified_at), ' ·') : null,
+            'year' => $record->year,
+            'bar_label' => trim($record->year.' '.$record->season).' · '.$record->barangay,
+            'search_text' => mb_strtolower(implode(' ', [$record->barangay, $record->season, $record->irrigation_type, $record->year, $record->production_month?->format('M Y'), $record->remarks, 'mao record'])),
+            // A record without a harvest month sorts with its year (after the dataset months of that year).
+            'sort_key' => ($record->production_month?->format('Y-m') ?? $record->year.'-13').'|2|'.str_pad((string) $record->id, 10, '0', STR_PAD_LEFT),
+        ]);
+    }
+
+    public function __construct()
+    {
+        $this->fields = [
+            ['name' => 'barangay', 'label' => 'Barangay', 'type' => 'select', 'options' => LianBarangays::options(false)],
+            ['name' => 'season', 'label' => 'Season', 'type' => 'select', 'options' => ['Wet' => 'Wet', 'Dry' => 'Dry']],
+            ['name' => 'irrigation_type', 'label' => 'Irrigation Type', 'type' => 'select', 'options' => ['Rainfed' => 'Rainfed', 'Irrigated' => 'Irrigated']],
+            // Panel revision 1.2: yield is t/ha. Leave it blank and it is worked out as total harvest (tons) ÷ area harvested.
+            ['name' => 'yield_per_hectare', 'label' => 'Yield (t/ha) – leave blank to compute from total harvest ÷ area harvested', 'type' => 'number', 'step' => '0.01'],
+            ['name' => 'area_hectares', 'label' => 'Area Planted (ha)', 'type' => 'number', 'step' => '0.01'],
+            ['name' => 'area_harvested_hectares', 'label' => 'Area Harvested (ha)', 'type' => 'number', 'step' => '0.01'],   // Manuscript – Naicel
+            ['name' => 'total_production', 'label' => 'Total Harvest (amount)', 'type' => 'number', 'step' => '0.01'],
+            ['name' => 'total_production_unit', 'label' => 'Total Harvest Unit (stored as tons)', 'type' => 'select', 'options' => [
+                \App\Support\YieldUnit::TONS => 'Tons', \App\Support\YieldUnit::KG => 'Kilograms', \App\Support\YieldUnit::SACKS => 'Sacks ('.rtrim(rtrim(number_format(\App\Support\YieldUnit::sackKg(), 1), '0'), '.').' kg each)',
+            ]],
+            ['name' => 'year', 'label' => 'Year', 'type' => 'number'],
+            ['name' => 'production_month', 'label' => 'Harvest / Production Month', 'type' => 'month'],
+            ['name' => 'remarks', 'label' => 'Remarks', 'type' => 'textarea'],
+        ];
+    }
+
+    /**
+     * Panel revision 1.2: the total harvest is stored in tons (converted from kg or sacks), and a blank yield is worked
+     * out as total tons ÷ area harvested (area planted when the harvested area is not given), in t/ha to two decimals.
+     */
+    protected function prepareData(Request $request, array $data): array
+    {
+        $data = parent::prepareData($request, $data);
+        $unit = $data['total_production_unit'] ?? \App\Support\YieldUnit::TONS;
+        unset($data['total_production_unit']);
+        if (isset($data['total_production']) && is_numeric($data['total_production'])) {
+            $data['total_production'] = round((float) \App\Support\YieldUnit::toTons($data['total_production'], $unit), 2);
+        }
+        if ((! isset($data['yield_per_hectare']) || $data['yield_per_hectare'] === '' || $data['yield_per_hectare'] === null) && isset($data['total_production'])) {
+            $data['yield_per_hectare'] = \App\Support\YieldUnit::toTonsPerHectare(
+                $data['total_production'], \App\Support\YieldUnit::TONS, $data['area_harvested_hectares'] ?? $data['area_hectares'] ?? null,
+            );
+        } elseif (isset($data['yield_per_hectare']) && is_numeric($data['yield_per_hectare'])) {
+            $data['yield_per_hectare'] = \App\Support\YieldUnit::round((float) $data['yield_per_hectare']);
+        }
+
+        return $data;
+    }
+
+    /** Manuscript – Naicel (2026-10-08): the same checks for each row of a CSV import (RecordImportController). */
+    public function importRules(): array
+    {
+        return $this->rules(request());
+    }
+
+    protected function rules(Request $request, ?int $id = null): array
+    {
+        return [
+            'barangay' => ['required', Rule::in(LianBarangays::all())],
+            'season' => ['required', Rule::in(['Wet', 'Dry'])],
+            'irrigation_type' => ['required', Rule::in(['Rainfed', 'Irrigated'])],
+            'yield_per_hectare' => ['nullable', 'numeric', 'min:0'],
+            'area_hectares' => ['nullable', 'numeric', 'min:0'],
+            'area_harvested_hectares' => ['nullable', 'numeric', 'min:0'],   // Manuscript – Naicel
+            'total_production' => ['nullable', 'numeric', 'min:0'],
+            'total_production_unit' => ['nullable', Rule::in([\App\Support\YieldUnit::TONS, \App\Support\YieldUnit::KG, \App\Support\YieldUnit::SACKS])],
+            'year' => ['required', 'integer', 'min:1900', 'max:2100'],
+            // Required: a harvest record without its month cannot be placed in a season or compared with the weather.
+            'production_month' => ['required', 'date_format:Y-m'],
+            'remarks' => ['nullable', 'string'],
+        ];
+    }
+}

@@ -1,0 +1,209 @@
+/*
+ * iClimate global loading overlay.
+ * One component for every page and role; driven by public/js/iclimate-loader.js.
+ * Colors reuse the iClimate tokens when the page defines them (layouts/app),
+ * with the same values as fallbacks for standalone pages (login, register, welcome).
+ */
+.icl-overlay {
+    --icl-green: var(--iclimate-primary-medium, #1F5A46);
+    --icl-green-deep: var(--iclimate-primary, #123F32);
+    --icl-track: var(--iclimate-accent-light, #C9D8CE);
+    --icl-grain: #C2912F;
+    --icl-text: #1F3B30;
+    --icl-size: 60px;
+
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(255, 255, 255, .65);
+    -webkit-backdrop-filter: blur(1.5px);
+    backdrop-filter: blur(1.5px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .16s ease, visibility 0s linear .16s;
+}
+
+/* Active: already blocks clicks (prevents double actions) while still invisible,
+   so very fast requests never flash the screen. */
+.icl-overlay.is-active {
+    pointer-events: auto;
+    cursor: progress;
+}
+
+.icl-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity .16s ease, visibility 0s;
+}
+
+.icl-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    min-width: 148px;
+    max-width: calc(100vw - 32px);
+    padding: 22px 26px 18px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .94);
+    border: 1px solid rgba(31, 90, 70, .10);
+    box-shadow: 0 12px 32px rgba(18, 63, 50, .14), 0 2px 6px rgba(18, 63, 50, .06);
+}
+
+/* Saves and requests: a small gray track with a moving green bar (no spinner). */
+.icl-progress {
+    position: relative;
+    width: 132px;
+    height: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--icl-track);
+}
+
+.icl-progress::before,
+.icl-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 35%;
+    border-radius: inherit;
+    background: var(--icl-green);
+    animation: icl-slide 1.1s ease-in-out infinite;
+}
+
+/* Page navigation: a thin bar on top and gray placeholder blocks where the next page will appear. */
+.icl-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    overflow: hidden;
+    display: none;
+}
+
+.icl-skeleton {
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 88px 24px 24px;
+}
+
+.icl-sk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.icl-sk {
+    border-radius: 12px;
+    background: linear-gradient(90deg, #e5eae7 0%, #f0f3f1 50%, #e5eae7 100%);
+    background-size: 200% 100%;
+    animation: icl-shimmer 1.3s ease-in-out infinite;
+}
+
+.icl-sk-title { height: 28px; width: 42%; }
+.icl-sk-line { height: 14px; width: 66%; }
+.icl-sk-card { height: 112px; }
+.icl-sk-block { height: 260px; }
+
+.icl-overlay.is-page {
+    align-items: flex-start;
+    justify-content: stretch;
+    padding: 0;
+    background: #f5f7f6;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+.icl-overlay.is-page .icl-box { display: none; }
+.icl-overlay.is-page .icl-bar { display: block; }
+.icl-overlay.is-page .icl-skeleton { display: flex; }
+
+/* The sidebar stays visible and usable-looking; only the content area turns into placeholders. */
+@media (min-width: 992px) {
+    body:has(.ic-sidebar) .icl-overlay.is-page { left: var(--sidebar-width, 248px); }
+}
+
+.icl-text {
+    margin: 0;
+    font-family: Inter, Arial, system-ui, sans-serif;
+    font-size: 14.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: .01em;
+    color: var(--icl-text);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.icl-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@keyframes icl-slide {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(290%); }
+}
+
+@keyframes icl-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+}
+
+@media (max-width: 575.98px) {
+    .icl-skeleton { padding: 72px 16px 16px; }
+    .icl-box { min-width: 132px; padding: 18px 20px 15px; gap: 10px; }
+    .icl-text { font-size: 14px; }
+}
+
+/* Reduced motion: nothing moves; the bars and blocks stay as still placeholders. */
+@media (prefers-reduced-motion: reduce) {
+    .icl-overlay,
+    .icl-overlay.is-visible { transition: none; }
+    .icl-sk,
+    .icl-progress::before,
+    .icl-bar::before { animation: none; }
+}
+
+/* Dark theme (data-theme on <html>, see resources/js/theme.js): dark box, bright green rice symbol, light text. */
+html[data-theme="dark"] .icl-overlay {
+    --icl-green: #7fd6b5;
+    --icl-green-deep: #4fb88e;
+    --icl-track: #2a3b33;
+    --icl-grain: #e0b45a;
+    --icl-text: #e4ece7;
+    background: rgba(8, 16, 12, .55);
+}
+
+html[data-theme="dark"] .icl-box {
+    background: #16231e;
+    border-color: #2a3b33;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+html[data-theme="dark"] .icl-overlay.is-page { background: #0f1613; }
+
+html[data-theme="dark"] .icl-sk {
+    background: linear-gradient(90deg, #1c2924 0%, #24342d 50%, #1c2924 100%);
+    background-size: 200% 100%;
+}
